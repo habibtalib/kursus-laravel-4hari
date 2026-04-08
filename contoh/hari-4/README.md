@@ -856,7 +856,38 @@ Tambah paparan gambar di dalam kad profil:
         </div>
     @endif
     <dl class="space-y-3">
-        ...
+        <div>
+            <dt class="text-xs font-medium text-gray-500 uppercase">Nama</dt>
+            <dd class="text-gray-800 font-medium">{{ $pembayar->nama }}</dd>
+        </div>
+        <div>
+            <dt class="text-xs font-medium text-gray-500 uppercase">No. IC</dt>
+            <dd class="text-gray-800">{{ $pembayar->ic_format }}</dd>
+        </div>
+        <div>
+            <dt class="text-xs font-medium text-gray-500 uppercase">Alamat</dt>
+            <dd class="text-gray-800">{{ $pembayar->alamat }}</dd>
+        </div>
+        <div>
+            <dt class="text-xs font-medium text-gray-500 uppercase">No. Telefon</dt>
+            <dd class="text-gray-800">{{ $pembayar->no_tel }}</dd>
+        </div>
+        <div>
+            <dt class="text-xs font-medium text-gray-500 uppercase">E-mel</dt>
+            <dd class="text-gray-800">{{ $pembayar->email ?? '-' }}</dd>
+        </div>
+        <div>
+            <dt class="text-xs font-medium text-gray-500 uppercase">Pekerjaan</dt>
+            <dd class="text-gray-800">{{ $pembayar->pekerjaan ?? '-' }}</dd>
+        </div>
+        <div>
+            <dt class="text-xs font-medium text-gray-500 uppercase">Pendapatan Bulanan</dt>
+            <dd class="text-gray-800">{{ $pembayar->pendapatan_format }}</dd>
+        </div>
+        <div class="pt-3 border-t">
+            <dt class="text-xs font-medium text-gray-500 uppercase">Jumlah Bayaran (Sah)</dt>
+            <dd class="text-lg font-bold text-emerald-600">{{ $pembayar->jumlah_bayaran }}</dd>
+        </div>
     </dl>
 </x-card>
 ```
@@ -1076,11 +1107,27 @@ Kemudian kemas kini kaedah `store()` untuk mencetuskan event selepas mencipta pe
 public function store(Request $request)
 {
     $validated = $request->validate([
-        // ... pengesahan sedia ada ...
+        'pembayar_id'    => 'required|exists:pembayars,id',
+        'jenis_zakat_id' => 'required|exists:jenis_zakats,id',
+        'jumlah'         => 'required|numeric|min:0.01',
+        'tarikh_bayar'   => 'required|date',
+        'cara_bayar'     => 'required|in:tunai,kad,fpx,online',
+        'no_resit'       => 'required|string|unique:pembayarans,no_resit',
+        'status'         => 'required|in:pending,sah,batal',
+    ], [
+        'pembayar_id.required'    => 'Sila pilih pembayar.',
+        'jenis_zakat_id.required' => 'Sila pilih jenis zakat.',
+        'jumlah.required'         => 'Sila masukkan jumlah bayaran.',
+        'jumlah.min'              => 'Jumlah mestilah lebih daripada sifar.',
+        'tarikh_bayar.required'   => 'Sila masukkan tarikh bayaran.',
+        'cara_bayar.required'     => 'Sila pilih cara bayaran.',
+        'no_resit.required'       => 'Sila masukkan nombor resit.',
+        'no_resit.unique'         => 'Nombor resit ini telah wujud.',
     ]);
 
     $pembayaran = Pembayaran::create($validated);
 
+    // Cetuskan event — kedua-dua listener akan dijalankan
     PembayaranDibuat::dispatch($pembayaran);
 
     return redirect()->route('pembayaran.index')
