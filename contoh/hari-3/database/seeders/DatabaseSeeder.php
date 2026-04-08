@@ -13,11 +13,26 @@ class DatabaseSeeder extends Seeder
      */
     public function run(): void
     {
-        // Cipta pengguna admin
+        // Cipta pengguna mengikut peranan
         User::create([
             'name' => 'Admin Zakat',
             'email' => 'admin@zakat.test',
             'password' => Hash::make('password'),
+            'role' => 'admin',
+        ]);
+
+        User::create([
+            'name' => 'Pegawai Zakat',
+            'email' => 'pegawai@zakat.test',
+            'password' => Hash::make('password'),
+            'role' => 'pegawai',
+        ]);
+
+        User::create([
+            'name' => 'Pemerhati',
+            'email' => 'pemerhati@zakat.test',
+            'password' => Hash::make('password'),
+            'role' => 'pemerhati',
         ]);
 
         $this->call([

@@ -12,6 +12,8 @@ class JenisZakatController extends Controller
      */
     public function index()
     {
+        $this->authorize('viewAny', JenisZakat::class);
+
         $jenisZakats = JenisZakat::withCount('pembayarans')->orderBy('nama')->get();
 
         return view('jenis-zakat.index', compact('jenisZakats'));
@@ -22,6 +24,8 @@ class JenisZakatController extends Controller
      */
     public function create()
     {
+        $this->authorize('create', JenisZakat::class);
+
         return view('jenis-zakat.create');
     }
 
@@ -30,6 +34,8 @@ class JenisZakatController extends Controller
      */
     public function store(Request $request)
     {
+        $this->authorize('create', JenisZakat::class);
+
         $validated = $request->validate([
             'nama' => 'required|string|max:255',
             'kadar' => 'required|numeric|min:0',
@@ -55,6 +61,8 @@ class JenisZakatController extends Controller
      */
     public function show(JenisZakat $jenisZakat)
     {
+        $this->authorize('view', $jenisZakat);
+
         $jenisZakat->loadCount('pembayarans');
 
         return view('jenis-zakat.show', compact('jenisZakat'));
@@ -65,6 +73,8 @@ class JenisZakatController extends Controller
      */
     public function edit(JenisZakat $jenisZakat)
     {
+        $this->authorize('update', $jenisZakat);
+
         return view('jenis-zakat.edit', compact('jenisZakat'));
     }
 
@@ -73,6 +83,8 @@ class JenisZakatController extends Controller
      */
     public function update(Request $request, JenisZakat $jenisZakat)
     {
+        $this->authorize('update', $jenisZakat);
+
         $validated = $request->validate([
             'nama' => 'required|string|max:255',
             'kadar' => 'required|numeric|min:0',
@@ -98,6 +110,8 @@ class JenisZakatController extends Controller
      */
     public function destroy(JenisZakat $jenisZakat)
     {
+        $this->authorize('delete', $jenisZakat);
+
         $jenisZakat->delete();
 
         return redirect()->route('jenis-zakat.index')

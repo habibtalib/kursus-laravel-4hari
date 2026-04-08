@@ -12,6 +12,8 @@ class PembayarController extends Controller
      */
     public function index(Request $request)
     {
+        $this->authorize('viewAny', Pembayar::class);
+
         $carian = $request->input('carian');
 
         $pembayars = Pembayar::query()
@@ -28,6 +30,8 @@ class PembayarController extends Controller
      */
     public function create()
     {
+        $this->authorize('create', Pembayar::class);
+
         return view('pembayar.create');
     }
 
@@ -36,6 +40,8 @@ class PembayarController extends Controller
      */
     public function store(Request $request)
     {
+        $this->authorize('create', Pembayar::class);
+
         $validated = $request->validate([
             'nama' => 'required|string|max:255',
             'no_ic' => 'required|string|size:12|unique:pembayars,no_ic',
@@ -67,6 +73,8 @@ class PembayarController extends Controller
      */
     public function show(Pembayar $pembayar)
     {
+        $this->authorize('view', $pembayar);
+
         $pembayar->load(['pembayarans.jenisZakat']);
 
         return view('pembayar.show', compact('pembayar'));
@@ -77,6 +85,8 @@ class PembayarController extends Controller
      */
     public function edit(Pembayar $pembayar)
     {
+        $this->authorize('update', $pembayar);
+
         return view('pembayar.edit', compact('pembayar'));
     }
 
@@ -85,6 +95,8 @@ class PembayarController extends Controller
      */
     public function update(Request $request, Pembayar $pembayar)
     {
+        $this->authorize('update', $pembayar);
+
         $validated = $request->validate([
             'nama' => 'required|string|max:255',
             'no_ic' => 'required|string|size:12|unique:pembayars,no_ic,' . $pembayar->id,
@@ -116,6 +128,8 @@ class PembayarController extends Controller
      */
     public function destroy(Pembayar $pembayar)
     {
+        $this->authorize('delete', $pembayar);
+
         $pembayar->delete();
 
         return redirect()->route('pembayar.index')

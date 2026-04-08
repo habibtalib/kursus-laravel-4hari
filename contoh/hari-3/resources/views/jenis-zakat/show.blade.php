@@ -40,10 +40,13 @@
         </div>
 
         <div class="flex space-x-3 mt-6 pt-4 border-t">
+            @can('update', $jenisZakat)
             <a href="{{ route('jenis-zakat.edit', $jenisZakat) }}"
                class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors">
                 Kemaskini
             </a>
+            @endcan
+            @can('delete', $jenisZakat)
             <form action="{{ route('jenis-zakat.destroy', $jenisZakat) }}" method="POST"
                   onsubmit="return confirm('Adakah anda pasti mahu memadam jenis zakat ini?')">
                 @csrf
@@ -53,6 +56,7 @@
                     Padam
                 </button>
             </form>
+            @endcan
         </div>
     </x-card>
 @endsection

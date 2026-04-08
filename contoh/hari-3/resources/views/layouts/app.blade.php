@@ -67,6 +67,7 @@
                     @auth
                         <div class="ml-4 pl-4 border-l border-emerald-600 flex items-center space-x-3">
                             <span class="text-emerald-100 text-sm">{{ Auth::user()->name }}</span>
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-200 text-emerald-900">{{ ucfirst(Auth::user()->role) }}</span>
                             <form method="POST" action="{{ route('logout') }}">
                                 @csrf
                                 <button type="submit"
@@ -110,7 +111,10 @@
                 </a>
                 @auth
                     <div class="border-t border-emerald-700 pt-2 mt-2">
-                        <span class="block px-3 py-2 text-sm text-emerald-200">{{ Auth::user()->name }}</span>
+                        <span class="block px-3 py-2 text-sm text-emerald-200">
+                            {{ Auth::user()->name }}
+                            <span class="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-emerald-200 text-emerald-900 ml-1">{{ ucfirst(Auth::user()->role) }}</span>
+                        </span>
                         <form method="POST" action="{{ route('logout') }}">
                             @csrf
                             <button type="submit"

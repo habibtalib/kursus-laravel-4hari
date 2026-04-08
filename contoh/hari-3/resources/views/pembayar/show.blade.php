@@ -43,10 +43,13 @@
         </div>
 
         <div class="flex space-x-3 mt-6 pt-4 border-t">
+            @can('update', $pembayar)
             <a href="{{ route('pembayar.edit', $pembayar) }}"
                class="px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 transition-colors">
                 Kemaskini
             </a>
+            @endcan
+            @can('delete', $pembayar)
             <form action="{{ route('pembayar.destroy', $pembayar) }}" method="POST"
                   onsubmit="return confirm('Adakah anda pasti mahu memadam pembayar ini?')">
                 @csrf
@@ -56,6 +59,7 @@
                     Padam
                 </button>
             </form>
+            @endcan
         </div>
     </x-card>
 

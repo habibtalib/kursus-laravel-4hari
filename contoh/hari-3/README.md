@@ -1,4 +1,4 @@
-# Hari 3 — Paparan Blade, Pengesahan Data, Auth & Cronjob
+# Hari 3 — Paparan Blade, Pengesahan Data, Auth, Polisi & Kebenaran, Cronjob
 
 > **Sistem Pengurusan Zakat Kedah** — Kursus Laravel 4 Hari
 > Tempoh: 6 jam | Prasyarat: Hari 1 & 2 selesai
@@ -15,8 +15,9 @@ Hari 3 membina di atas projek sedia ada daripada Hari 1 (Pembayar CRUD, persekit
 | 2 | CRUD Lanjutan | JenisZakat & Pembayaran — CRUD lengkap |
 | 3 | Pengesahan Data | Validation rules, mesej BM, `@error` |
 | 4 | Pengesahan Pengguna | Login, Register, middleware `auth`/`guest` |
-| 5 | Cronjob & Scheduler | Artisan commands, task scheduling |
-| 6 | Penghantaran E-mel | Mailable, Mail facade, paparan e-mel |
+| 5 | Polisi, Peranan & Kebenaran | Policy, Roles, `@can`, `$this->authorize()` |
+| 6 | Cronjob & Scheduler | Artisan commands, task scheduling |
+| 7 | Penghantaran E-mel | Mailable, Mail facade, paparan e-mel |
 
 ---
 
@@ -814,11 +815,483 @@ Log masuk dengan: `admin@zakat.test` / `password`
 
 ---
 
-## Bahagian E: Cronjob & Task Scheduler
+## Bahagian E: Polisi, Peranan & Kebenaran (Policy, Roles & Permissions)
+
+Laravel menyediakan sistem kebenaran (authorization) melalui **Policy** dan **Gate**. Kita akan membina sistem peranan mudah (role-based access control) tanpa pakej luaran.
+
+### Langkah 17: Tambah Peranan pada Jadual Pengguna
+
+```bash
+php artisan make:migration add_role_to_users_table --table=users
+```
+
+**Fail:** `database/migrations/2024_01_01_000004_add_role_to_users_table.php`
+
+```php
+<?php
+
+use Illuminate\Database\Migrations\Migration;
+use Illuminate\Database\Schema\Blueprint;
+use Illuminate\Support\Facades\Schema;
+
+return new class extends Migration
+{
+    public function up(): void
+    {
+        Schema::table('users', function (Blueprint $table) {
+            $table->enum('role', ['admin', 'pegawai', 'pemerhati'])->default('pemerhati')->after('email');
+        });
+    }
+
+    public function down(): void
+    {
+        Schema::table('users', function (Blueprint $table) {
+            $table->dropColumn('role');
+        });
+    }
+};
+```
+
+**Peranan dalam sistem:**
+
+| Peranan | Penerangan | Pembayar | Jenis Zakat | Pembayaran |
+|---------|------------|----------|-------------|------------|
+| `admin` | Pentadbir sistem | CRUD penuh | CRUD penuh | CRUD penuh |
+| `pegawai` | Pegawai zakat | Cipta, Kemaskini, Lihat | Lihat sahaja | Cipta, Kemaskini, Lihat |
+| `pemerhati` | Pemerhati / Auditor | Lihat sahaja | Lihat sahaja | Lihat sahaja |
+
+### Langkah 18: Kemas Kini Model User
+
+**Fail:** `app/Models/User.php`
+
+```php
+<?php
+
+namespace App\Models;
+
+use Illuminate\Database\Eloquent\Factories\HasFactory;
+use Illuminate\Foundation\Auth\User as Authenticatable;
+use Illuminate\Notifications\Notifiable;
+
+class User extends Authenticatable
+{
+    use HasFactory, Notifiable;
+
+    protected $fillable = [
+        'name',
+        'email',
+        'password',
+        'role',
+    ];
+
+    protected $hidden = [
+        'password',
+        'remember_token',
+    ];
+
+    protected function casts(): array
+    {
+        return [
+            'email_verified_at' => 'datetime',
+            'password' => 'hashed',
+        ];
+    }
+
+    // === Peranan (Roles) ===
+
+    /**
+     * Semak sama ada pengguna ialah admin.
+     */
+    public function isAdmin(): bool
+    {
+        return $this->role === 'admin';
+    }
+
+    /**
+     * Semak sama ada pengguna ialah pegawai.
+     */
+    public function isPegawai(): bool
+    {
+        return $this->role === 'pegawai';
+    }
+
+    /**
+     * Semak sama ada pengguna ialah pemerhati.
+     */
+    public function isPemerhati(): bool
+    {
+        return $this->role === 'pemerhati';
+    }
+
+    /**
+     * Semak sama ada pengguna mempunyai salah satu peranan.
+     */
+    public function hasRole(string ...$roles): bool
+    {
+        return in_array($this->role, $roles);
+    }
+}
+```
+
+### Langkah 19: Cipta Policy — PembayarPolicy
+
+```bash
+php artisan make:policy PembayarPolicy --model=Pembayar
+```
+
+**Fail:** `app/Policies/PembayarPolicy.php`
+
+```php
+<?php
+
+namespace App\Policies;
+
+use App\Models\Pembayar;
+use App\Models\User;
+
+class PembayarPolicy
+{
+    /**
+     * Semak sama ada pengguna boleh melihat senarai pembayar.
+     * Semua peranan dibenarkan.
+     */
+    public function viewAny(User $user): bool
+    {
+        return true; // Semua peranan boleh lihat senarai
+    }
+
+    /**
+     * Semak sama ada pengguna boleh melihat seorang pembayar.
+     */
+    public function view(User $user, Pembayar $pembayar): bool
+    {
+        return true; // Semua peranan boleh lihat butiran
+    }
+
+    /**
+     * Semak sama ada pengguna boleh mendaftar pembayar baru.
+     * Hanya admin dan pegawai dibenarkan.
+     */
+    public function create(User $user): bool
+    {
+        return $user->hasRole('admin', 'pegawai');
+    }
+
+    /**
+     * Semak sama ada pengguna boleh mengemaskini pembayar.
+     * Hanya admin dan pegawai dibenarkan.
+     */
+    public function update(User $user, Pembayar $pembayar): bool
+    {
+        return $user->hasRole('admin', 'pegawai');
+    }
+
+    /**
+     * Semak sama ada pengguna boleh memadamkan pembayar.
+     * Hanya admin dibenarkan.
+     */
+    public function delete(User $user, Pembayar $pembayar): bool
+    {
+        return $user->isAdmin();
+    }
+}
+```
+
+**Penjelasan:**
+- Setiap kaedah policy menerima `User $user` dan (pilihan) model instance
+- Return `true` = dibenarkan, `false` = ditolak
+- `hasRole('admin', 'pegawai')` — Semak sama ada pengguna mempunyai salah satu peranan
+- Laravel secara automatik memadankan nama policy berdasarkan nama model
+
+### Langkah 20: Cipta Policy — JenisZakatPolicy & PembayaranPolicy
+
+**Fail:** `app/Policies/JenisZakatPolicy.php`
+
+```php
+<?php
+
+namespace App\Policies;
+
+use App\Models\JenisZakat;
+use App\Models\User;
+
+class JenisZakatPolicy
+{
+    public function viewAny(User $user): bool
+    {
+        return true;
+    }
+
+    public function view(User $user, JenisZakat $jenisZakat): bool
+    {
+        return true;
+    }
+
+    /**
+     * Hanya admin boleh mengurus jenis zakat.
+     */
+    public function create(User $user): bool
+    {
+        return $user->isAdmin();
+    }
+
+    public function update(User $user, JenisZakat $jenisZakat): bool
+    {
+        return $user->isAdmin();
+    }
+
+    public function delete(User $user, JenisZakat $jenisZakat): bool
+    {
+        return $user->isAdmin();
+    }
+}
+```
+
+**Fail:** `app/Policies/PembayaranPolicy.php`
+
+```php
+<?php
+
+namespace App\Policies;
+
+use App\Models\Pembayaran;
+use App\Models\User;
+
+class PembayaranPolicy
+{
+    public function viewAny(User $user): bool
+    {
+        return true;
+    }
+
+    public function view(User $user, Pembayaran $pembayaran): bool
+    {
+        return true;
+    }
+
+    public function create(User $user): bool
+    {
+        return $user->hasRole('admin', 'pegawai');
+    }
+
+    public function update(User $user, Pembayaran $pembayaran): bool
+    {
+        return $user->hasRole('admin', 'pegawai');
+    }
+
+    public function delete(User $user, Pembayaran $pembayaran): bool
+    {
+        return $user->isAdmin();
+    }
+}
+```
+
+### Langkah 21: Cipta Middleware Semak Peranan
+
+```bash
+php artisan make:middleware SemakPeranan
+```
+
+**Fail:** `app/Http/Middleware/SemakPeranan.php`
+
+```php
+<?php
+
+namespace App\Http\Middleware;
+
+use Closure;
+use Illuminate\Http\Request;
+use Symfony\Component\HttpFoundation\Response;
+
+class SemakPeranan
+{
+    /**
+     * Semak peranan pengguna.
+     * Penggunaan: middleware('peranan:admin,pegawai')
+     */
+    public function handle(Request $request, Closure $next, string ...$roles): Response
+    {
+        if (!$request->user() || !$request->user()->hasRole(...$roles)) {
+            abort(403, 'Anda tidak mempunyai kebenaran untuk mengakses halaman ini.');
+        }
+
+        return $next($request);
+    }
+}
+```
+
+**Penggunaan dalam laluan:**
+
+```php
+// Hanya admin boleh akses
+Route::get('/tetapan', ...)->middleware('peranan:admin');
+
+// Admin dan pegawai boleh akses
+Route::resource('pembayar', ...)->middleware('peranan:admin,pegawai');
+```
+
+### Langkah 22: Daftar Middleware
+
+**Fail:** `bootstrap/app.php`
+
+```php
+<?php
+
+use Illuminate\Foundation\Application;
+use Illuminate\Foundation\Configuration\Exceptions;
+use Illuminate\Foundation\Configuration\Middleware;
+
+return Application::configure(basePath: dirname(__DIR__))
+    ->withRouting(
+        web: __DIR__.'/../routes/web.php',
+        commands: __DIR__.'/../routes/console.php',
+        health: '/up',
+    )
+    ->withMiddleware(function (Middleware $middleware): void {
+        $middleware->alias([
+            'peranan' => \App\Http\Middleware\SemakPeranan::class,
+        ]);
+    })
+    ->withExceptions(function (Exceptions $exceptions): void {
+        //
+    })->create();
+```
+
+### Langkah 23: Guna Policy dalam Controller
+
+Tambah `$this->authorize()` pada setiap kaedah controller:
+
+**Fail:** `app/Http/Controllers/PembayarController.php` (contoh)
+
+```php
+public function index(Request $request)
+{
+    $this->authorize('viewAny', Pembayar::class);
+
+    $carian = $request->input('carian');
+    // ... kod sedia ada
+}
+
+public function create()
+{
+    $this->authorize('create', Pembayar::class);
+    return view('pembayar.create');
+}
+
+public function store(Request $request)
+{
+    $this->authorize('create', Pembayar::class);
+    // ... pengesahan dan simpan
+}
+
+public function show(Pembayar $pembayar)
+{
+    $this->authorize('view', $pembayar);
+    // ... kod sedia ada
+}
+
+public function edit(Pembayar $pembayar)
+{
+    $this->authorize('update', $pembayar);
+    return view('pembayar.edit', compact('pembayar'));
+}
+
+public function update(Request $request, Pembayar $pembayar)
+{
+    $this->authorize('update', $pembayar);
+    // ... pengesahan dan kemaskini
+}
+
+public function destroy(Pembayar $pembayar)
+{
+    $this->authorize('delete', $pembayar);
+    $pembayar->delete();
+    return redirect()->route('pembayar.index')->with('success', 'Pembayar berjaya dipadamkan.');
+}
+```
+
+> **Nota:** Tambah corak yang sama pada `JenisZakatController` dan `PembayaranController`.
+
+### Langkah 24: Sembunyikan Butang dengan @can dalam Blade
+
+Gunakan arahan `@can` untuk menyembunyikan butang berdasarkan kebenaran:
+
+```blade
+{{-- Hanya papar butang jika pengguna mempunyai kebenaran --}}
+@can('create', App\Models\Pembayar::class)
+    <a href="{{ route('pembayar.create') }}">Daftar Pembayar Baru</a>
+@endcan
+
+@can('update', $pembayar)
+    <a href="{{ route('pembayar.edit', $pembayar) }}">Kemaskini</a>
+@endcan
+
+@can('delete', $pembayar)
+    <form action="{{ route('pembayar.destroy', $pembayar) }}" method="POST">
+        @csrf @method('DELETE')
+        <button>Padam</button>
+    </form>
+@endcan
+```
+
+> **Nota:** Gunakan corak yang sama pada paparan `jenis-zakat` dan `pembayaran`.
+
+### Langkah 25: Cipta Pengguna Mengikut Peranan
+
+**Fail:** `database/seeders/DatabaseSeeder.php`
+
+```php
+// Cipta pengguna mengikut peranan
+User::create([
+    'name' => 'Admin Zakat',
+    'email' => 'admin@zakat.test',
+    'password' => Hash::make('password'),
+    'role' => 'admin',
+]);
+
+User::create([
+    'name' => 'Pegawai Zakat',
+    'email' => 'pegawai@zakat.test',
+    'password' => Hash::make('password'),
+    'role' => 'pegawai',
+]);
+
+User::create([
+    'name' => 'Pemerhati',
+    'email' => 'pemerhati@zakat.test',
+    'password' => Hash::make('password'),
+    'role' => 'pemerhati',
+]);
+```
+
+### Langkah 26: Uji Kebenaran
+
+| # | Ujian | Langkah | Jangkaan |
+|---|-------|---------|----------|
+| 1 | Log masuk sebagai admin | admin@zakat.test / password | Boleh CRUD semua |
+| 2 | Log masuk sebagai pegawai | pegawai@zakat.test / password | Boleh cipta/kemaskini, tidak boleh padam |
+| 3 | Log masuk sebagai pemerhati | pemerhati@zakat.test / password | Lihat sahaja, butang cipta/kemaskini/padam tersembunyi |
+| 4 | Akses terus URL | /pembayar/create sebagai pemerhati | 403 Forbidden |
+
+### Konsep Authorization dalam Laravel
+
+| Konsep | Penerangan |
+|--------|------------|
+| `Policy` | Kelas yang mentakrifkan kebenaran untuk satu model |
+| `Gate` | Kebenaran umum (tidak terikat model) — tidak digunakan di sini |
+| `$this->authorize()` | Semak kebenaran dalam controller, throw 403 jika gagal |
+| `@can` / `@cannot` | Arahan Blade untuk semak kebenaran dalam paparan |
+| `$user->can()` | Semak kebenaran dalam kod PHP |
+| `middleware('can:create,App\Models\Pembayar')` | Semak kebenaran melalui middleware laluan |
+| `hasRole()` | Kaedah custom pada model User |
+
+---
+
+## Bahagian F: Cronjob & Task Scheduler
 
 Laravel Task Scheduler membolehkan anda menjadualkan tugas-tugas automatik tanpa perlu mengurus crontab yang kompleks. Anda hanya perlu satu entri crontab, dan Laravel menguruskan yang selebihnya.
 
-### Langkah 17: Cipta Arahan Artisan — Laporan Harian
+### Langkah 27: Cipta Arahan Artisan — Laporan Harian
 
 ```bash
 php artisan make:command LaporanHarian
@@ -898,7 +1371,7 @@ Jumlah kutipan     : RM 5,481.00
 Laporan berjaya dilog ke storage/logs/laravel.log
 ```
 
-### Langkah 18: Cipta Arahan Artisan — Bersih Pembayaran Batal
+### Langkah 28: Cipta Arahan Artisan — Bersih Pembayaran Batal
 
 ```bash
 php artisan make:command BersihkanPembayaranBatal
@@ -948,7 +1421,7 @@ class BersihkanPembayaranBatal extends Command
 php artisan zakat:bersih-batal
 ```
 
-### Langkah 19: Daftar Jadual (Schedule)
+### Langkah 29: Daftar Jadual (Schedule)
 
 Fail: `routes/console.php`
 
@@ -964,7 +1437,7 @@ Schedule::command('zakat:laporan-harian')->dailyAt('08:00');
 Schedule::command('zakat:bersih-batal')->weeklyOn(1, '02:00');
 ```
 
-### Langkah 20: Jalankan Scheduler
+### Langkah 30: Jalankan Scheduler
 
 **Lihat senarai jadual:**
 
@@ -1018,11 +1491,11 @@ Laragon mempunyai sokongan scheduler terbina dalam. Anda boleh menambah tugas me
 
 ---
 
-## Bahagian F: Penghantaran E-mel (Mail)
+## Bahagian G: Penghantaran E-mel (Mail)
 
 Laravel menyediakan API e-mel yang ringkas melalui kelas `Mailable`. Untuk pembangunan, kita menggunakan pemandu `log` supaya e-mel direkod dalam fail log tanpa memerlukan pelayan SMTP sebenar.
 
-### Langkah 21: Konfigurasi E-mel
+### Langkah 31: Konfigurasi E-mel
 
 Pastikan fail `.env` mempunyai tetapan berikut:
 
@@ -1036,7 +1509,7 @@ MAIL_FROM_NAME="Sistem Zakat Kedah"
 - `MAIL_MAILER=log` — E-mel direkod ke `storage/logs/laravel.log` (untuk pembangunan)
 - Untuk pengeluaran, tukar kepada `smtp` dan tetapkan pelayan SMTP sebenar
 
-### Langkah 22: Cipta Mailable — Selamat Datang
+### Langkah 32: Cipta Mailable — Selamat Datang
 
 ```bash
 php artisan make:mail SelamatDatangMail
@@ -1096,7 +1569,7 @@ class SelamatDatangMail extends Mailable
 - `public User $user` — Data yang dihantar ke paparan e-mel (constructor promotion)
 - `Queueable` — Membolehkan e-mel dihantar secara async melalui queue
 
-### Langkah 23: Cipta Paparan E-mel Selamat Datang
+### Langkah 33: Cipta Paparan E-mel Selamat Datang
 
 **Fail:** `resources/views/emails/selamat-datang.blade.php`
 
@@ -1170,7 +1643,7 @@ class SelamatDatangMail extends Mailable
 - Struktur menggunakan `<table>` untuk keserasian merentas klien e-mel
 - Akses data melalui `{{ $user->name }}` kerana `$user` dihantar dari Mailable
 
-### Langkah 24: Hantar E-mel Semasa Pendaftaran
+### Langkah 34: Hantar E-mel Semasa Pendaftaran
 
 Kemas kini `RegisterController` untuk menghantar e-mel selamat datang selepas pendaftaran berjaya.
 
@@ -1241,7 +1714,7 @@ class RegisterController extends Controller
 - `->send(new SelamatDatangMail($user))` — Hantar e-mel secara segerak (synchronous)
 - Untuk menghantar secara async: `Mail::to($user->email)->queue(new SelamatDatangMail($user))`
 
-### Langkah 25: Cipta Mailable — Laporan Harian
+### Langkah 35: Cipta Mailable — Laporan Harian
 
 ```bash
 php artisan make:mail LaporanHarianMail
@@ -1293,7 +1766,7 @@ class LaporanHarianMail extends Mailable
 }
 ```
 
-### Langkah 26: Cipta Paparan E-mel Laporan
+### Langkah 36: Cipta Paparan E-mel Laporan
 
 **Fail:** `resources/views/emails/laporan-harian.blade.php`
 
@@ -1358,7 +1831,7 @@ class LaporanHarianMail extends Mailable
 </html>
 ```
 
-### Langkah 27: Kemas Kini Cronjob untuk Hantar E-mel
+### Langkah 37: Kemas Kini Cronjob untuk Hantar E-mel
 
 Kemas kini arahan `LaporanHarian` supaya menghantar laporan melalui e-mel selain merekod ke log.
 
@@ -1439,7 +1912,7 @@ class LaporanHarian extends Command
 }
 ```
 
-### Langkah 28: Uji Penghantaran E-mel
+### Langkah 38: Uji Penghantaran E-mel
 
 #### 28a. Uji e-mel pendaftaran
 
@@ -1494,9 +1967,9 @@ Buka `http://localhost:8025` untuk melihat e-mel dalam peti masuk maya.
 
 ---
 
-## Bahagian G: Jalankan & Uji
+## Bahagian H: Jalankan & Uji
 
-### Langkah 29: Migrasi & Seed
+### Langkah 39: Migrasi & Seed
 
 ```bash
 php artisan migrate:fresh --seed
@@ -1504,10 +1977,10 @@ php artisan migrate:fresh --seed
 
 Ini akan:
 - Padam dan cipta semula semua jadual
-- Masukkan pengguna admin (`admin@zakat.test` / `password`)
+- Masukkan 3 pengguna: admin (`admin@zakat.test`), pegawai (`pegawai@zakat.test`), pemerhati (`pemerhati@zakat.test`) — kata laluan: `password`
 - Masukkan 10 pembayar, 5 jenis zakat, dan 20 pembayaran contoh
 
-### Langkah 30: Uji CRUD
+### Langkah 40: Uji CRUD
 
 1. Buka `http://sistem-zakat.test` — akan redirect ke halaman login
 2. Log masuk dengan `admin@zakat.test` / `password`
@@ -1519,14 +1992,21 @@ Ini akan:
    - Tapis mengikut status
    - Kemaskini status pembayaran
 
-### Langkah 31: Uji Auth
+### Langkah 41: Uji Auth
 
 1. Log keluar (butang "Log Keluar" di navbar)
 2. Cuba akses `/pembayar` — akan redirect ke `/login`
 3. Daftar akaun baru di `/daftar`
 4. Log masuk semula dengan akaun baru
 
-### Langkah 32: Uji Cronjob
+### Langkah 42: Uji Peranan & Kebenaran
+
+1. Log masuk sebagai admin (`admin@zakat.test`) — semua butang tampil
+2. Log masuk sebagai pegawai (`pegawai@zakat.test`) — butang padam tersembunyi
+3. Log masuk sebagai pemerhati (`pemerhati@zakat.test`) — hanya boleh lihat
+4. Cuba akses `/pembayar/create` sebagai pemerhati — 403 Forbidden
+
+### Langkah 43: Uji Cronjob
 
 ```bash
 # Lihat senarai arahan zakat
@@ -1555,24 +2035,33 @@ sistem-zakat/
 │   ├── Console/Commands/
 │   │   ├── LaporanHarian.php              ← Arahan laporan harian (+ e-mel)
 │   │   └── BersihkanPembayaranBatal.php    ← Arahan bersih rekod batal
-│   ├── Http/Controllers/
-│   │   ├── Auth/
-│   │   │   ├── LoginController.php         ← Log masuk
-│   │   │   └── RegisterController.php      ← Pendaftaran (+ e-mel)
-│   │   ├── JenisZakatController.php        ← CRUD jenis zakat
-│   │   └── PembayaranController.php        ← CRUD pembayaran
+│   ├── Http/
+│   │   ├── Controllers/
+│   │   │   ├── Auth/
+│   │   │   │   ├── LoginController.php         ← Log masuk
+│   │   │   │   └── RegisterController.php      ← Pendaftaran (+ e-mel)
+│   │   │   ├── JenisZakatController.php        ← CRUD jenis zakat (+ authorize)
+│   │   │   └── PembayaranController.php        ← CRUD pembayaran (+ authorize)
+│   │   └── Middleware/
+│   │       └── SemakPeranan.php                ← Middleware semak peranan
 │   ├── Mail/
 │   │   ├── SelamatDatangMail.php           ← E-mel selamat datang
 │   │   └── LaporanHarianMail.php           ← E-mel laporan harian
-│   └── Models/
-│       ├── JenisZakat.php                  ← Model jenis zakat
-│       └── Pembayaran.php                  ← Model pembayaran
+│   ├── Models/
+│   │   ├── User.php                        ← Dikemaskini (+ role methods)
+│   │   ├── JenisZakat.php                  ← Model jenis zakat
+│   │   └── Pembayaran.php                  ← Model pembayaran
+│   └── Policies/
+│       ├── PembayarPolicy.php              ← Polisi kebenaran pembayar
+│       ├── JenisZakatPolicy.php            ← Polisi kebenaran jenis zakat
+│       └── PembayaranPolicy.php            ← Polisi kebenaran pembayaran
 ├── database/
 │   ├── migrations/
 │   │   ├── create_jenis_zakats_table.php   ← Migrasi jenis zakat
-│   │   └── create_pembayarans_table.php    ← Migrasi pembayaran
+│   │   ├── create_pembayarans_table.php    ← Migrasi pembayaran
+│   │   └── add_role_to_users_table.php     ← Migrasi tambah peranan
 │   └── seeders/
-│       ├── DatabaseSeeder.php              ← Dikemaskini (+ admin user)
+│       ├── DatabaseSeeder.php              ← Dikemaskini (+ 3 pengguna peranan)
 │       ├── JenisZakatSeeder.php            ← Data contoh jenis zakat
 │       └── PembayaranSeeder.php            ← Data contoh pembayaran
 ├── resources/views/
@@ -1613,6 +2102,7 @@ sistem-zakat/
 | **CRUD Lanjutan** | JenisZakat & Pembayaran — controller penuh, paparan Blade, eager loading, paginasi |
 | **Pengesahan Data** | `$request->validate()` dengan mesej BM, `@error` dalam Blade, `old()` untuk kekalkan input |
 | **Authentication** | `Auth::attempt()`, `Auth::login()`, `Hash::make()`, middleware `auth`/`guest`, `@auth`/`@guest` |
+| **Policy & Roles** | `Policy`, `$this->authorize()`, `@can`/`@cannot`, `hasRole()`, middleware `peranan`, role-based access control |
 | **Cronjob** | Artisan commands (`$signature`, `handle()`), `Schedule::command()`, `schedule:run`, crontab |
 | **E-mel** | `Mailable`, `Mail::to()->send()`, `envelope()`, `content()`, inline CSS, `MAIL_MAILER=log` |
 

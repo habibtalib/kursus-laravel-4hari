@@ -5,6 +5,7 @@
 @section('content')
     <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 gap-4">
         <h1 class="text-2xl font-bold text-gray-800">Senarai Pembayar</h1>
+        @can('create', App\Models\Pembayar::class)
         <a href="{{ route('pembayar.create') }}"
            class="inline-flex items-center px-4 py-2 bg-emerald-600 text-white text-sm font-medium rounded-lg hover:bg-emerald-700 transition-colors">
             <svg class="w-4 h-4 mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -12,6 +13,7 @@
             </svg>
             Tambah Pembayar
         </a>
+        @endcan
     </div>
 
     {{-- Borang Carian --}}
@@ -70,12 +72,15 @@
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"/>
                                         </svg>
                                     </a>
+                                    @can('update', $pembayar)
                                     <a href="{{ route('pembayar.edit', $pembayar) }}"
                                        class="text-blue-600 hover:text-blue-800" title="Kemaskini">
                                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"/>
                                         </svg>
                                     </a>
+                                    @endcan
+                                    @can('delete', $pembayar)
                                     <form action="{{ route('pembayar.destroy', $pembayar) }}" method="POST"
                                           onsubmit="return confirm('Adakah anda pasti mahu memadam pembayar ini?')">
                                         @csrf
@@ -86,6 +91,7 @@
                                             </svg>
                                         </button>
                                     </form>
+                                    @endcan
                                 </div>
                             </td>
                         </tr>

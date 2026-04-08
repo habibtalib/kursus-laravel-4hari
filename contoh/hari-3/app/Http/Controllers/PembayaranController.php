@@ -14,6 +14,8 @@ class PembayaranController extends Controller
      */
     public function index(Request $request)
     {
+        $this->authorize('viewAny', Pembayaran::class);
+
         $status = $request->input('status');
 
         $pembayarans = Pembayaran::with(['pembayar', 'jenisZakat'])
@@ -30,6 +32,8 @@ class PembayaranController extends Controller
      */
     public function create()
     {
+        $this->authorize('create', Pembayaran::class);
+
         $pembayars = Pembayar::orderBy('nama')->get();
         $jenisZakats = JenisZakat::aktif()->orderBy('nama')->get();
         $noResit = 'ZK-' . date('Y') . '-' . str_pad(Pembayaran::count() + 1, 4, '0', STR_PAD_LEFT);
@@ -42,6 +46,8 @@ class PembayaranController extends Controller
      */
     public function store(Request $request)
     {
+        $this->authorize('create', Pembayaran::class);
+
         $validated = $request->validate([
             'pembayar_id' => 'required|exists:pembayars,id',
             'jenis_zakat_id' => 'required|exists:jenis_zakats,id',
@@ -77,6 +83,8 @@ class PembayaranController extends Controller
      */
     public function show(Pembayaran $pembayaran)
     {
+        $this->authorize('view', $pembayaran);
+
         $pembayaran->load(['pembayar', 'jenisZakat']);
 
         return view('pembayaran.show', compact('pembayaran'));
@@ -87,6 +95,8 @@ class PembayaranController extends Controller
      */
     public function edit(Pembayaran $pembayaran)
     {
+        $this->authorize('update', $pembayaran);
+
         $pembayars = Pembayar::orderBy('nama')->get();
         $jenisZakats = JenisZakat::aktif()->orderBy('nama')->get();
 
@@ -98,6 +108,8 @@ class PembayaranController extends Controller
      */
     public function update(Request $request, Pembayaran $pembayaran)
     {
+        $this->authorize('update', $pembayaran);
+
         $validated = $request->validate([
             'pembayar_id' => 'required|exists:pembayars,id',
             'jenis_zakat_id' => 'required|exists:jenis_zakats,id',
@@ -132,6 +144,8 @@ class PembayaranController extends Controller
      */
     public function destroy(Pembayaran $pembayaran)
     {
+        $this->authorize('delete', $pembayaran);
+
         $pembayaran->delete();
 
         return redirect()->route('pembayaran.index')
